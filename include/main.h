@@ -1,8 +1,7 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-enum Direction
-{
+enum Direction {
     FORWARD,
     BACKWARD,
     LEFT,
@@ -10,18 +9,16 @@ enum Direction
     STOP
 };
 
-enum StepType
-{
+enum StepType {
     STEP_FORWARD,
     STEP_ROTATE,
     STEP_FORWARD_UNTIL_END,
     STEP_BACKWARD
 };
 
-struct Step
-{
+struct Step {
     StepType type;
-    float value;   // cm pour STEP_FORWARD, deg pour ROTATE, ignoré pour UNTIL_FALL
+    float value; // cm pour STEP_FORWARD, deg pour ROTATE, ignoré pour UNTIL_FALL
     int32_t speed; // Vitesse en pas / seconde
 };
 
@@ -34,24 +31,22 @@ struct Step
 // PINs réels
 #ifndef SIMULATOR
 
-// Moteur 1 - Gauche
+// Moteur 1 - Droite
 #define M1_DIR_PIN 19
 #define M1_STEP_PIN 23
 #define M1_ENABLE_PIN 26
 
-// Moteur 2 - Droite
+// Moteur 2 - Gauche
 #define M2_DIR_PIN 21
 #define M2_STEP_PIN 25
 #define M2_ENABLE_PIN 27
 
 // Capteur à ultrasons
-#define TRIG_PIN 15
-#define ECHO_PIN 14
-
-// Capteur de chute
-#define FALL_PIN 13
-
-#define SERVO_PIN 12
+#define TRIG_PIN 13
+#define ECHO_PIN 12
+// Servo Moteur
+#define SERVO_PIN 15
+// FIXME : Je sais pas, loop sous le bouton d'arret d'urgence
 #define EMG_PIN 5
 
 #endif
@@ -88,9 +83,10 @@ struct Step
 #define DRIVER1_ADDR 0b01
 #define DRIVER2_ADDR 0b10
 
+// TODO : Changer les constantes avec nouvelles dim
 // Constantes
-#define WHEEL_DIAMETER 5.5 // cm
-#define WHEEL_BASE 7.2     // cm
+#define WHEEL_DIAMETER 5.6  // cm
+#define WHEEL_BASE 7        // cm
 #define STEPS_PER_REV 200.0
 #define MICROSTEPPING 8.0
 
