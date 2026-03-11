@@ -29,13 +29,3 @@ int getRotationSteps(float angleDeg) {
 
     return (int) round(microStepsForAngle);
 }
-
-void setServoAngle(int angle, int channel) {
-    int value = map(angle, 0, 180, 544, 2400);
-    // Serial.print("Servo angle: ");
-    // Serial.println(value);
-    if (value < 544) value = 544;
-    if (value > 2400) value = 2400;
-    int duty = value * 65535 / 20000;
-    ledcWrite(channel, duty);
-}

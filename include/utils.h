@@ -1,5 +1,5 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef PAMI_UTILS_H
+#define PAMI_UTILS_H
 
 void enableMotorDrivers();
 
@@ -9,6 +9,4 @@ int getStepsForDistance(float cm);
 
 int getRotationSteps(float angleDeg);
 
-void setServoAngle(int angle, int channel = 0);
-
-#endif // UTILS_H
+#endif // PAMI_UTILS_H

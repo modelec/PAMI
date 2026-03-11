@@ -1,5 +1,5 @@
-#ifndef MAIN_H
-#define MAIN_H
+#ifndef PAMI_MAIN_H
+#define PAMI_MAIN_H
 
 enum Direction {
     FORWARD,
@@ -46,7 +46,6 @@ struct Step {
 #define ECHO_PIN 12
 // Servo Moteur
 #define SERVO_PIN 15
-// FIXME : Je sais pas, loop sous le bouton d'arret d'urgence
 #define EMG_PIN 5
 
 #endif
@@ -90,4 +89,4 @@ struct Step {
 #define STEPS_PER_REV 200.0
 #define MICROSTEPPING 8.0
 
-#endif // MAIN_H
+#endif // PAMI_MAIN_H
