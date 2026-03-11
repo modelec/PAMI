@@ -9,4 +9,6 @@ int getStepsForDistance(float cm);
 
 int getRotationSteps(float angleDeg);
 
+int readSwitchOnce(int pin);
+
 #endif // PAMI_UTILS_H

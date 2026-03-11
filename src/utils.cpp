@@ -29,3 +29,11 @@ int getRotationSteps(float angleDeg) {
 
     return (int) round(microStepsForAngle);
 }
+
+int readSwitchOnce(int pin) {
+    pinMode(SWITCH_PIN, INPUT_PULLUP);
+    delay(10);
+    const bool switchState = digitalRead(SWITCH_PIN);
+    pinMode(SWITCH_PIN, INPUT); // retire le pull-up
+    return switchState;
+}

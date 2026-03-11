@@ -47,6 +47,8 @@ struct Step {
 // Servo Moteur
 #define SERVO_PIN 15
 #define EMG_PIN 5
+// Bouton de sélection de côté
+#define SWITCH_PIN 14
 
 #endif
 

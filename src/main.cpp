@@ -225,6 +225,8 @@ void loop() {
     Serial.println("Trigger initialized");
   } else if (digitalRead(TIRETTE_PIN) == HIGH && tirettePose) {
     Serial.println("Trigger removed");
+    Serial.print("Switch : ");
+    Serial.println(readSwitchOnce(SWITCH_PIN) ? "OFF" : "ON");
     delay(START_DELAY);
     Serial.println("Starting the script");
     startTime = millis();
