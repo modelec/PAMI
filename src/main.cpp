@@ -2,13 +2,16 @@
 #include "main.h"
 
 #include "Servo.h"
+#include "Stepper.h"
+#include "Steppers.h"
+#include "UltraSonicSensor.h"
 #include "utils.h"
 
-// TODO : Sélection du camps avec un bouton et non un define
-// Côté bleu = 1 et Côté jaune = 2
-#define PAMI_SIDE 1
 #define PAMI_NUM 2
 #define START_DELAY 5000
+
+// Côté bleu = 0 et Côté jaune = 1
+int side;
 
 // Stepper
 volatile int32_t speed_steps_per_sec = 0;
@@ -18,6 +21,7 @@ volatile bool movementInProgress = false;
 Direction lastDirection = STOP;
 volatile int32_t lastSpeed = 0;
 
+// TODO : Générer le tableau de scénario après avoir chosit le coté
 // Scénario
 #if PAMI_NUM == 1
 Step scenario[] = {
@@ -27,8 +31,8 @@ Step scenario[] = {
 };
 #elif PAMI_NUM == 2
 Step scenario[] = {
-  {STEP_BACKWARD, 35, 2500},
-  {STEP_BACKWARD, 80 - 10 * PAMI_NUM, 3000}
+  {STEP_FORWARD, 80 - 10 * PAMI_NUM, 3000},
+  {STEP_BACKWARD, 35, 2500}
 };
 #else
 Step scenario[] = {
@@ -42,17 +46,19 @@ const int scenarioLength = sizeof(scenario) / sizeof(Step);
 int currentScenarioStep = 0;
 bool scenarioInProgress = false;
 
-// Ultrason (non bloquant)
+// Ultrason
 volatile unsigned long distanceCM = 1000;
 const unsigned int obstacleThresholdCM = 7;
-unsigned long lastUltrasonicTrigger = 0;
-bool waitingEcho = false;
-unsigned long echoStart = 0;
+UltraSonicSensor ultraSonic = UltraSonicSensor(TRIG_PIN, ECHO_PIN);
 
 // Servo
 const int SERVO_EAT_UP = 135;
 const int SERVO_EAT_DOWN = 45;
-Servo servo_eat;
+Servo servo_eat = Servo(SERVO_PIN, 1);
+
+auto stepperRight = Stepper(M1_ENABLE_PIN, M1_DIR_PIN, M1_STEP_PIN, true);
+auto stepperLeft = Stepper(M2_ENABLE_PIN, M2_DIR_PIN, M2_STEP_PIN);
+auto steppers = Steppers({stepperLeft, stepperRight});
 
 // Tirette et EMG
 bool tirettePose = false;
@@ -61,20 +67,10 @@ uint32_t startTime = 0;
 // Tâche ultrason sur Core 0
 [[noreturn]] void ultrasonicTask(void *pvParameters) {
   for (;;) {
-    // Trigger
-    digitalWrite(TRIG_PIN, LOW);
-    delayMicroseconds(2);
-    digitalWrite(TRIG_PIN, HIGH);
-    delayMicroseconds(20);
-    digitalWrite(TRIG_PIN, LOW);
-
     // Lecture bloquante
-    unsigned long duration = pulseIn(ECHO_PIN, HIGH, 20000); // timeout 20ms
-    unsigned long newDistance = duration * 0.034 / 2; // cm
+    distanceCM = ultraSonic.readCm();
 
-    distanceCM = newDistance;
-
-    vTaskDelay(50 / portTICK_PERIOD_MS); // 50ms entre mesures
+    vTaskDelay(200 / portTICK_PERIOD_MS); // 50ms entre mesures
   }
 }
 
@@ -83,29 +79,21 @@ void setup() {
   Serial.begin(115200);
 
   // Pins moteurs
-  // Moteur 1 (Droite)
-  pinMode(M1_STEP_PIN, OUTPUT);
-  pinMode(M1_DIR_PIN, OUTPUT);
-  pinMode(M1_ENABLE_PIN, OUTPUT);
-  // Moteur 2 (Gauche)
-  pinMode(M2_STEP_PIN, OUTPUT);
-  pinMode(M2_DIR_PIN, OUTPUT);
-  pinMode(M2_ENABLE_PIN, OUTPUT);
+  steppers.init();
 
   // Capteurs
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
+  ultraSonic.init();
   // Tirette de démarrage
   pinMode(TIRETTE_PIN, INPUT_PULLUP);
   // Bouton d'arrêt d'urgence (HIGH si appuyé)
   pinMode(EMG_PIN, INPUT);
 
   // Servo
-  servo_eat = Servo(SERVO_PIN, 1);
+  servo_eat.init();
   servo_eat.writeAngle(SERVO_EAT_UP);
 
 
-  enableMotorDrivers();
+  steppers.enable();
   speed_steps_per_sec = 0;
 
   // Créer la tâche sur Core 0
@@ -129,11 +117,7 @@ void updateSteppers() {
   if (speed_steps_per_sec != 0 && steps_done < steps_target) {
     uint32_t interval = 1000000UL / abs(speed_steps_per_sec);
     if (now - last_step_time1 >= interval) {
-      digitalWrite(M1_STEP_PIN, HIGH);
-      digitalWrite(M2_STEP_PIN, HIGH);
-      delayMicroseconds(2);
-      digitalWrite(M1_STEP_PIN, LOW);
-      digitalWrite(M2_STEP_PIN, LOW);
+      steppers.stepAll();
       last_step_time1 = now;
       steps_done++;
     }
@@ -175,8 +159,7 @@ void detectObstacles() {
 void moveAsyncSteps(int32_t steps, int32_t speed, bool forwardDir) {
   steps_target = steps;
   steps_done = 0;
-  digitalWrite(M1_DIR_PIN, forwardDir ? HIGH : LOW);
-  digitalWrite(M2_DIR_PIN, forwardDir ? HIGH : LOW);
+  steppers.writeDir(forwardDir);
   speed_steps_per_sec = speed;
   movementInProgress = true;
   lastDirection = forwardDir ? FORWARD : BACKWARD;
@@ -185,8 +168,8 @@ void moveAsyncSteps(int32_t steps, int32_t speed, bool forwardDir) {
 void rotateAsync(float angleDeg, int32_t speed, bool toRight) {
   steps_target = getRotationSteps(angleDeg + 10.0);
   steps_done = 0;
-  digitalWrite(M1_DIR_PIN, toRight ? HIGH : LOW);
-  digitalWrite(M2_DIR_PIN, toRight ? LOW : HIGH);
+  stepperLeft.writeDir(toRight);
+  stepperRight.writeDir(!toRight);
   speed_steps_per_sec = speed;
   movementInProgress = true;
   lastDirection = toRight ? RIGHT : LEFT;
@@ -223,10 +206,11 @@ void loop() {
   if (digitalRead(TIRETTE_PIN) == LOW && !tirettePose) {
     tirettePose = true;
     Serial.println("Trigger initialized");
+    side = readSwitchOnce(SWITCH_PIN);
+    Serial.print("Side : ");
+    Serial.println(side ? "BLUE" : "YELLOW");
   } else if (digitalRead(TIRETTE_PIN) == HIGH && tirettePose) {
     Serial.println("Trigger removed");
-    Serial.print("Switch : ");
-    Serial.println(readSwitchOnce(SWITCH_PIN) ? "OFF" : "ON");
     delay(START_DELAY);
     Serial.println("Starting the script");
     startTime = millis();

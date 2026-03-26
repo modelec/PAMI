@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-void Servo::initServo() const {
+void Servo::init() const {
     pinMode(pin, OUTPUT);
     ledcSetup(channel, 50, 16);
     ledcAttachPin(pin, channel);
@@ -17,8 +17,6 @@ Servo::Servo(int pin, int channel, int min_angle, int max_angle, int min_us, int
     this->max_us = max_us;
     this->min_angle = min_angle;
     this->max_angle = max_angle;
-
-    initServo();
 }
 
 void Servo::writeAngle(int angle) const {

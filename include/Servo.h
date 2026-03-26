@@ -16,14 +16,14 @@ private:
     int min_angle{};
     int max_angle{};
 
-    void initServo() const;
-
 public:
     Servo();
 
     Servo(int pin, int channel, int min_angle = DEFAULT_MIN_ANGLE, int max_angle = DEFAULT_MAX_ANGLE,
           int min_us = DEFAULT_MIN_US,
           int max_us = DEFAULT_MAX_US);
+
+    void init() const;
 
     void writeAngle(int angle) const;
 
