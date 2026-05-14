@@ -12,14 +12,19 @@ enum Direction {
 enum StepType {
     STEP_FORWARD,
     STEP_ROTATE,
-    STEP_FORWARD_UNTIL_END,
+    STEP_FORWARD_LAST,
     STEP_BACKWARD
 };
 
 struct Step {
     StepType type;
-    float value; // cm pour STEP_FORWARD, deg pour ROTATE, ignoré pour UNTIL_FALL
+    int value; // cm pour STEP_FORWARD, deg pour ROTATE, ignoré pour UNTIL_FALL
     int32_t speed; // Vitesse en pas / seconde
+};
+
+enum Side {
+    BLUE,
+    YELLOW
 };
 
 // UART
@@ -46,6 +51,7 @@ struct Step {
 #define ECHO_PIN 12
 // Servo Moteur
 #define SERVO_PIN 15
+
 #define EMG_PIN 5
 // Bouton de sélection de côté
 #define SWITCH_PIN 14
@@ -86,7 +92,7 @@ struct Step {
 
 // TODO : Changer les constantes avec nouvelles dim
 // Constantes
-#define WHEEL_DIAMETER 5.6  // cm
+#define WHEEL_DIAMETER 5.65  // cm
 #define WHEEL_BASE 7        // cm
 #define STEPS_PER_REV 200.0
 #define MICROSTEPPING 8.0

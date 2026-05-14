@@ -8,10 +8,13 @@
 #include "utils.h"
 
 #define PAMI_NUM 2
-#define START_DELAY 5000
+#define START_DELAY 85000
+// #define START_DELAY 2000
 
-// Côté bleu = 0 et Côté jaune = 1
-int side;
+#define OBSTACLE_THRESHOLD 7
+#define OBSTACLE_THRESHOLD_CLOSE 3
+
+Side side;
 
 // Stepper
 volatile int32_t speed_steps_per_sec = 0;
@@ -21,34 +24,53 @@ volatile bool movementInProgress = false;
 Direction lastDirection = STOP;
 volatile int32_t lastSpeed = 0;
 
-// TODO : Générer le tableau de scénario après avoir chosit le coté
 // Scénario
-#if PAMI_NUM == 1
-Step scenario[] = {
-  {STEP_FORWARD, 105, 2500},
-  {STEP_ROTATE, PAMI_SIDE == 1 ? -90 : 90, 1000},
-  {STEP_FORWARD, 50, 2000}
-};
-#elif PAMI_NUM == 2
-Step scenario[] = {
-  {STEP_FORWARD, 80 - 10 * PAMI_NUM, 3000},
-  {STEP_BACKWARD, 35, 2500}
-};
-#else
-Step scenario[] = {
-  {STEP_FORWARD, 35, 2500},
-  {STEP_ROTATE, PAMI_SIDE == 1 ? -45 + 10 * (PAMI_NUM - 2) : 45 - 10 * (PAMI_NUM - 2), 500},
-  {STEP_FORWARD, 80 - 10 * PAMI_NUM, 3000}
-};
-#endif
+Step scenario[10];
+int scenarioLength = 0;
 
-const int scenarioLength = sizeof(scenario) / sizeof(Step);
+void buildScenario(const bool rotation) {
+#if PAMI_NUM == 1
+
+  scenarioLength = 1;
+
+  scenario[0] = {STEP_FORWARD, 100, 1000};
+
+#elif PAMI_NUM == 2
+
+  scenarioLength = 4;
+
+  scenario[0] = {STEP_FORWARD, 30, 1000};
+  scenario[0] = {STEP_FORWARD, 140, 2000};
+  scenario[1] = {STEP_ROTATE, 90 * rotation, 500};
+  scenario[2] = {STEP_FORWARD, 50, 1000};
+  scenario[2] = {STEP_FORWARD_LAST, 5, 500};
+
+#elif PAMI_NUM == 3
+
+  scenarioLength = 3;
+
+  scenario[0] = {STEP_FORWARD, 35, 1000};
+  scenario[1] = {STEP_ROTATE, 90 * rotation, 500};
+  scenario[2] = {STEP_FORWARD, 65, 1000};
+
+#else
+
+  scenarioLength = 3;
+
+  scenario[0] = {STEP_FORWARD, 110, 1000};
+  scenario[1] = {STEP_ROTATE, 90 * rotation, 500};
+  scenario[2] = {STEP_FORWARD, 20, 1000};
+
+#endif
+}
+
+// const int scenarioLength = sizeof(scenario) / sizeof(Step);
 int currentScenarioStep = 0;
 bool scenarioInProgress = false;
 
 // Ultrason
 volatile unsigned long distanceCM = 1000;
-const unsigned int obstacleThresholdCM = 7;
+volatile unsigned int obstacleThresholdCM = OBSTACLE_THRESHOLD;
 UltraSonicSensor ultraSonic = UltraSonicSensor(TRIG_PIN, ECHO_PIN);
 
 // Servo
@@ -83,6 +105,8 @@ void setup() {
 
   // Capteurs
   ultraSonic.init();
+  // Switch side
+  pinMode(SWITCH_PIN, INPUT_PULLUP);
   // Tirette de démarrage
   pinMode(TIRETTE_PIN, INPUT_PULLUP);
   // Bouton d'arrêt d'urgence (HIGH si appuyé)
@@ -187,9 +211,13 @@ int processScenario() {
 
   Step &step = scenario[currentScenarioStep];
   switch (step.type) {
-    case STEP_FORWARD: moveAsyncSteps(getStepsForDistance(step.value), step.speed, true);
+    case STEP_FORWARD_LAST:
+      obstacleThresholdCM = OBSTACLE_THRESHOLD_CLOSE;
+    case STEP_FORWARD:
+      moveAsyncSteps(getStepsForDistance(step.value), step.speed, true);
       break;
-    case STEP_BACKWARD: moveAsyncSteps(getStepsForDistance(step.value), step.speed, false);
+    case STEP_BACKWARD:
+      moveAsyncSteps(getStepsForDistance(step.value), step.speed, false);
       break;
     case STEP_ROTATE:
       if (step.value >= 0) rotateAsync(step.value, step.speed, true);
@@ -206,36 +234,52 @@ void loop() {
   if (digitalRead(TIRETTE_PIN) == LOW && !tirettePose) {
     tirettePose = true;
     Serial.println("Trigger initialized");
-    side = readSwitchOnce(SWITCH_PIN);
+    side = static_cast<Side>(readSwitchOnce(SWITCH_PIN));
     Serial.print("Side : ");
-    Serial.println(side ? "BLUE" : "YELLOW");
+    Serial.println(side ? "YELLOW" : "BLUE");
+    buildScenario(side);
   } else if (digitalRead(TIRETTE_PIN) == HIGH && tirettePose) {
     Serial.println("Trigger removed");
+    startTime = millis();
     delay(START_DELAY);
     Serial.println("Starting the script");
-    startTime = millis();
     scenarioInProgress = true;
 
+    bool scenarioFinished = false;
+
     while (true) {
-      updateSteppers();
-      detectObstacles();
-      processScenario();
 
-      // Fin de scénario ou timeout
-      if (!scenarioInProgress || millis() - startTime >= 100000) {
-        stopMotors();
-        Serial.println("Script finished, motor stopped");
+      if (!scenarioFinished) {
+        updateSteppers();
+        detectObstacles();
+        processScenario();
 
-        // Servo en boucle jusqu'à reset
+        // Fin du scénario
+        if (!scenarioInProgress) {
+          stopMotors();
+          scenarioFinished = true;
+
+          Serial.println("Script finished, motor stopped");
+          Serial.println("Waiting for end match timeout...");
+        }
+      }
+
+      // Fin du match (100 secondes)
+      if (millis() - startTime >= 100000) {
+
         Serial.println("Starting the post game action");
+
         while (true) {
+
           if (!digitalRead(EMG_PIN)) {
             servo_eat.writeAngle(SERVO_EAT_UP);
             delay(500);
+
             servo_eat.writeAngle(SERVO_EAT_DOWN);
             delay(500);
+
           } else {
-            Serial.println("Restarting the ESP 32 ...");
+            Serial.println("Restarting the ESP32...");
             ESP.restart();
           }
         }
