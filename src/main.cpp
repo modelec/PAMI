@@ -59,7 +59,6 @@ void buildScenario(const int rotation) {
 #endif
 }
 
-// const int scenarioLength = sizeof(scenario) / sizeof(Step);
 int currentScenarioStep = 0;
 bool scenarioInProgress = false;
 
